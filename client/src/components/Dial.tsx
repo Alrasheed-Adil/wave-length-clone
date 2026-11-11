@@ -65,11 +65,15 @@ export function Dial({ value, target, interactive, onChange, onDragChange, accen
   // Physical needle: a spring chases the value so remote updates glide instead of snapping.
   const raw = useMotionValue(value);
   const spring = useSpring(raw, { stiffness: 420, damping: 32, mass: 0.6 });
-  useEffect(() => raw.set(value), [value, raw]);
+  useEffect(() => {
+    raw.set(value);
+  }, [value, raw]);
   const paint = (v: number) =>
     needleRef.current?.setAttribute('transform', `rotate(${((v - 0.5) * 180).toFixed(3)} ${CX} ${CY})`);
   useMotionValueEvent(spring, 'change', paint);
-  useEffect(() => paint(spring.get()), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    paint(spring.get());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shutter: a perforated grille that drops away to reveal the target.
   const shutterY = useMotionValue(open ? R_FACE + 24 : 0);

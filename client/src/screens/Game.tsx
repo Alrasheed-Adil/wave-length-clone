@@ -190,7 +190,7 @@ export function Game({ room }: { room: RoomView }) {
   );
 }
 
-function EndPlate({ text, lang, side }: { text: string; lang: string; side: 'left' | 'right' }) {
+export function EndPlate({ text, lang, side }: { text: string; lang: string; side: 'left' | 'right' }) {
   return (
     // The plate stays physically LTR so each label hugs the end of the dial it names,
     // while the words inside keep their own direction.
@@ -292,7 +292,7 @@ function Scoreboard({ room }: { room: RoomView }) {
 }
 
 /** Odometer-style number that rolls when it changes. */
-function Num({ value }: { value: number }) {
+export function Num({ value }: { value: number }) {
   return (
     <span className="relative inline-block h-7 min-w-[1.6ch] overflow-hidden text-center font-mono text-xl font-medium leading-7">
       <AnimatePresence initial={false} mode="popLayout">

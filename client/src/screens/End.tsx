@@ -2,8 +2,10 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { CARD_BY_ID } from '@shared/cards';
 import type { RoomView, TeamId } from '@shared/types';
+import { useCallback, useState } from 'react';
 import { useGame } from '../store';
 import { Avatar } from '../components/Avatar';
+import { Replay } from '../components/Replay';
 import { LangToggle, TEAM_COLOR, useTeamName, Wordmark } from '../components/ui';
 
 export function End({ room }: { room: RoomView }) {
@@ -15,6 +17,26 @@ export function End({ room }: { room: RoomView }) {
   const { A, B } = room.scores;
   const winner: TeamId | null = A === B ? null : A > B ? 'A' : 'B';
   const cardLang = room.settings.lang;
+  // The replay runs first; `null` means we're on the results.
+  const [replayFrom, setReplayFrom] = useState<number | null>(room.history.length ? 0 : null);
+  const done = useCallback(() => {
+    setReplayFrom(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  if (replayFrom !== null) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 pb-16 pt-5 sm:px-8">
+        <header className="flex items-center justify-between">
+          <Wordmark />
+          <LangToggle />
+        </header>
+        <div className="mt-6">
+          <Replay key={replayFrom} room={room} startAt={replayFrom} onDone={done} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-16 pt-5 sm:px-8">
@@ -33,7 +55,7 @@ export function End({ room }: { room: RoomView }) {
           style={{ color: !coop && winner ? TEAM_COLOR[winner] : undefined }}
         >
           {coop
-            ? t('end.coopResult', { score: room.coopScore, max: room.settings.rounds * 4 })
+            ? t('end.coopResult', { score: room.coopScore, max: room.history.length * 4 })
             : winner
               ? t('end.wins', { team: teamName(winner) })
               : t('end.tie')}
@@ -60,16 +82,29 @@ export function End({ room }: { room: RoomView }) {
             {t('lobby.leave')}
           </button>
         </div>
+        {room.history.length > 0 && (
+          <button
+            className="mt-5 text-sm font-semibold underline underline-offset-4"
+            onClick={() => setReplayFrom(0)}
+          >
+            ▶ {t('end.watchAgain')}
+          </button>
+        )}
       </section>
 
       <section className="mt-12">
         <h2 className="label">{t('end.history')}</h2>
         <ol className="mt-3 divide-y-2 divide-ink/10 border-y-2 border-ink">
-          {room.history.map((h) => {
+          {room.history.map((h, n) => {
             const card = CARD_BY_ID.get(h.cardId);
             const psychic = room.players.find((p) => p.id === h.psychicId);
             return (
-              <li key={h.round} className="flex items-center gap-3 py-2.5">
+              <li
+                key={h.round}
+                className="flex cursor-pointer items-center gap-3 py-2.5 transition-colors hover:bg-paper-2"
+                onClick={() => setReplayFrom(n)}
+                title={t('end.watchAgain')}
+              >
                 <span className="w-7 font-mono text-ink-3">{String(h.round).padStart(2, '0')}</span>
                 {psychic && <Avatar id={psychic.avatar} size={28} ring={h.team ? TEAM_COLOR[h.team] : undefined} />}
                 <div className="min-w-0 flex-1">
