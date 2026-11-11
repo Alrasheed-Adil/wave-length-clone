@@ -76,6 +76,26 @@ host.s.emit('game:next');
 await wait(150);
 assert(host.st.view!.round === 2 && host.st.view!.activeTeam === 'B', 'round 2 passes to team B');
 
-bots.forEach((b) => b.s.close());
+// Host refreshes mid-game: a stand-in holds host, then the owner gets it back.
+host.s.close();
+await wait(200);
+const standIn = rest[0].st.view!.hostId;
+assert(standIn !== host.id, 'host dropped: a stand-in takes over');
+const back = await bot(0);
+await new Promise((r) => back.s.emit('room:join', { playerId: host.id, name: 'Host', avatar: 0, code }, r));
+await wait(150);
+assert(back.st.view!.hostId === host.id, 'host refreshes and gets host back');
+assert(back.st.view!.round === 2, 'rejoined into the same game');
+
+// Host presses Leave: host is handed over for good and does not come back on rejoin.
+back.s.emit('room:leave');
+await wait(150);
+const heir = rest[0].st.view!.hostId;
+assert(heir !== host.id, 'host leaves on purpose: host handed over');
+await new Promise((r) => back.s.emit('room:join', { playerId: host.id, name: 'Host', avatar: 0, code }, r));
+await wait(150);
+assert(back.st.view!.hostId === heir, 'old host rejoins as a regular player');
+
+[...bots, back].forEach((b) => b.s.close());
 console.log('\nall good');
 process.exit(0);

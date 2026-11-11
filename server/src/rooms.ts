@@ -23,7 +23,10 @@ export class GameError extends Error {}
 
 export interface Room {
   code: string;
+  /** Who currently holds host controls (may be a stand-in while the owner is offline). */
   hostId: string;
+  /** Who host belongs to. Survives refreshes; changes only when the owner leaves on purpose. */
+  ownerId: string;
   players: Map<string, Player>;
   settings: RoomSettings;
   phase: Phase;
@@ -73,6 +76,7 @@ export function createRoom(p: JoinPayload & { lang: Lang }): Room {
   const room: Room = {
     code,
     hostId: p.playerId,
+    ownerId: p.playerId,
     players: new Map(),
     settings: { rounds: 8, categories: [...ALL_CATEGORIES], mode: 'teams', lang: p.lang === 'ar' ? 'ar' : 'en' },
     phase: 'lobby',
@@ -104,6 +108,8 @@ export function joinRoom(room: Room, p: JoinPayload): Player {
     existing.name = cleanName(p.name);
     existing.avatar = cleanAvatar(p.avatar);
     room.emptySince = null;
+    // The owner coming back (e.g. after a refresh) takes host back from the stand-in.
+    if (existing.id === room.ownerId) room.hostId = existing.id;
     return existing;
   }
   if (room.players.size >= MAX_PLAYERS) throw new GameError('room_full');
@@ -140,7 +146,12 @@ export function leaveRoom(room: Room, playerId: string, hard: boolean): boolean 
     room.emptySince = Date.now();
     return false;
   }
-  if (room.hostId === playerId) room.hostId = connected[0].id;
+  if (room.hostId === playerId) {
+    // A dropped connection hands host to a stand-in until the owner returns;
+    // pressing Leave hands it over for good.
+    room.hostId = connected[0].id;
+    if (hard) room.ownerId = room.hostId;
+  }
   return false;
 }
 
