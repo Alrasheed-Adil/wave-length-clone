@@ -29,13 +29,34 @@ for (let i = 0; i < Number(countArg ?? 3); i++) {
     }),
   );
 
+  // Lock voting: a bot votes once the needle has been still for a few seconds,
+  // and votes again if someone's move wiped the votes.
+  let voteTimer: ReturnType<typeof setTimeout> | null = null;
+  let guessingNow = false;
+  const scheduleVote = (ms = 3500) => {
+    if (voteTimer) clearTimeout(voteTimer);
+    voteTimer = setTimeout(() => {
+      voteTimer = null;
+      if (guessingNow && !busy) s.emit('game:vote', true);
+    }, ms);
+  };
+  s.on('game:needle', () => {
+    if (guessingNow) scheduleVote();
+  });
+
   s.on('room:state', async (v: RoomView) => {
     const me = v.players.find((p) => p.id === id);
     if (!me) return;
-    const key = `${v.phase}:${v.round}`;
-    if (busy || key === lastKey) return;
     const guessing =
       v.phase === 'guess' && v.psychicId !== id && me.team && (v.settings.mode === 'coop' || me.team === v.activeTeam);
+    guessingNow = !!guessing;
+    if (guessing && !v.lockVotes.includes(id) && !voteTimer) scheduleVote(busy ? 9000 : 3500);
+    if (!guessing && voteTimer) {
+      clearTimeout(voteTimer);
+      voteTimer = null;
+    }
+    const key = `${v.phase}:${v.round}`;
+    if (busy || key === lastKey) return;
     const countering = v.phase === 'counter' && me.team && me.team !== v.activeTeam;
 
     if (v.phase === 'clue' && v.psychicId === id) {
@@ -64,9 +85,8 @@ for (let i = 0; i < Number(countArg ?? 3); i++) {
         s.emit('game:needle', x);
         await delay(60);
       }
-      await delay(6000);
-      s.emit('game:lock');
       busy = false;
+      scheduleVote(4000);
     } else if (countering) {
       lastKey = key;
       await delay(1800);

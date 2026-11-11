@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CATEGORIES } from '@shared/cards';
 import type { RoomView, TeamId } from '@shared/types';
-import { canCounter, canGuess, useGame } from '../store';
+import { canCounter, canGuess, guessVoters, useGame } from '../store';
 import { Dial } from '../components/Dial';
 import { Avatar } from '../components/Avatar';
 import { LangToggle, TEAM_COLOR, useTeamName, Wordmark } from '../components/ui';
@@ -116,18 +116,19 @@ export function Game({ room }: { room: RoomView }) {
               <p className="mt-1 h-5 text-sm text-ink-3">
                 {tuner && tuner.id !== me ? `↻ ${tuner.name}` : ''}
               </p>
-              <button className="key key-signal mt-2 w-full py-3.5 text-lg" onClick={g.lockIn}>
-                {t('game.lockIn')}
-              </button>
+              <VotePanel room={room} interactive />
             </div>
           ) : (
-            <Status>
-              {isPsychic
-                ? t('game.psychicWatch')
-                : coop
-                  ? t('game.tune')
-                  : t('game.watchingGuess', { team: teamName(room.activeTeam) })}
-            </Status>
+            <div>
+              <Status>
+                {isPsychic
+                  ? t('game.psychicWatch')
+                  : coop
+                    ? t('game.tune')
+                    : t('game.watchingGuess', { team: teamName(room.activeTeam) })}
+              </Status>
+              <VotePanel room={room} interactive={false} />
+            </div>
           ))}
 
         {room.phase === 'counter' &&
@@ -205,6 +206,97 @@ export function EndPlate({ text, lang, side }: { text: string; lang: string; sid
         {text}
       </span>
       {side === 'right' && <span className="text-amber" aria-hidden="true">▸</span>}
+    </div>
+  );
+}
+
+/**
+ * Locking is a group decision: every guesser votes for the needle where it is.
+ * Any move of the needle clears all votes (the server enforces this).
+ */
+function VotePanel({ room, interactive }: { room: RoomView; interactive: boolean }) {
+  const { t } = useTranslation();
+  const me = useGame((s) => s.playerId);
+  const needleBy = useGame((s) => s.needleBy);
+  const vote = useGame((s) => s.vote);
+  const voters = guessVoters(room);
+  const votes = new Set(room.lockVotes);
+  const voted = votes.has(me);
+  const count = voters.filter((p) => votes.has(p.id)).length;
+  const solo = voters.length <= 1;
+
+  // Flash a notice when someone's move wipes out existing votes.
+  const prev = useRef(room.lockVotes.length);
+  const [resetBy, setResetBy] = useState<string | null>(null);
+  useEffect(() => {
+    const movedJustNow = Date.now() - useGame.getState().needleAt < 1500;
+    if (prev.current > 0 && room.lockVotes.length === 0 && room.phase === 'guess' && movedJustNow) {
+      setResetBy(room.players.find((p) => p.id === needleBy)?.name ?? '');
+      const id = setTimeout(() => setResetBy(null), 2200);
+      prev.current = 0;
+      return () => clearTimeout(id);
+    }
+    prev.current = room.lockVotes.length;
+  }, [room.lockVotes.length, room.phase, room.players, needleBy]);
+
+  return (
+    <div className="mt-2">
+      {!solo && (
+        <ul className="mb-3 flex flex-wrap justify-center gap-2" aria-label={t('game.votes', { count, total: voters.length })}>
+          {voters.map((p) => {
+            const yes = votes.has(p.id);
+            return (
+              <li key={p.id} className="flex flex-col items-center gap-1">
+                <span className="relative">
+                  <motion.span
+                    className="block rounded-[14px]"
+                    animate={{ opacity: yes ? 1 : 0.45, scale: yes ? 1 : 0.92 }}
+                  >
+                    <Avatar id={p.avatar} size={34} ring={yes ? 'var(--color-moss)' : undefined} />
+                  </motion.span>
+                  <AnimatePresence>
+                    {yes && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        className="absolute -bottom-1 -end-1 grid size-4 place-items-center rounded-full border-2 border-ink bg-moss text-[9px] font-black text-glow"
+                      >
+                        ✓
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </span>
+                <span className="max-w-16 truncate text-xs font-semibold">{p.name}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {interactive && (
+        <button
+          className={`key mt-1 w-full py-3.5 text-lg ${voted ? 'key-ink' : 'key-signal'}`}
+          onClick={() => vote(!voted)}
+          aria-pressed={voted}
+        >
+          {solo
+            ? t('game.lockIn')
+            : voted
+              ? `✓ ${t('game.waitingVotes', { count, total: voters.length })}`
+              : `${t('game.lockIn')} · ${count}/${voters.length}`}
+        </button>
+      )}
+
+      <p className="mt-2 h-5 text-sm font-semibold" aria-live="polite">
+        {resetBy !== null ? (
+          <span className="text-signal">↺ {t('game.votesReset', { name: resetBy || '—' })}</span>
+        ) : interactive && voted && !solo ? (
+          <span className="text-ink-3">{t('game.tapToCancel')}</span>
+        ) : interactive && !solo ? (
+          <span className="text-ink-3">{t('game.voteHint')}</span>
+        ) : null}
+      </p>
     </div>
   );
 }

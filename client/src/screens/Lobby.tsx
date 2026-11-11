@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CATEGORIES } from '@shared/cards';
+import { CARD_COUNT_BY_CATEGORY, CATEGORIES } from '@shared/cards';
 import type { Player, RoomView, TeamId } from '@shared/types';
 import { useGame, useMe } from '../store';
 import { LangToggle, PlayerChip, TEAM_COLOR, Wordmark } from '../components/ui';
@@ -231,14 +231,32 @@ function Settings({ room, isHost }: { room: RoomView; isHost: boolean }) {
       </div>
 
       <div className="mt-3">
-        <div className="text-sm font-bold">{t('lobby.categories')}</div>
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-sm font-bold">{t('lobby.categories')}</div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-xs text-ink-3">
+              {t('lobby.cardCount', {
+                count: s.categories.reduce((n, id) => n + (CARD_COUNT_BY_CATEGORY[id] ?? 0), 0),
+              })}
+            </span>
+            {isHost && s.categories.length < CATEGORIES.length && (
+              <button
+                className="text-xs font-bold underline underline-offset-2"
+                onClick={() => update({ categories: CATEGORIES.map((c) => c.id) })}
+              >
+                {t('lobby.allDecks')}
+              </button>
+            )}
+          </div>
+        </div>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {CATEGORIES.map((c) => {
             const on = s.categories.includes(c.id);
+            const last = on && s.categories.length === 1; // at least one deck must stay on
             return (
               <button
                 key={c.id}
-                disabled={!isHost}
+                disabled={!isHost || last}
                 aria-pressed={on}
                 onClick={() =>
                   update({ categories: on ? s.categories.filter((x) => x !== c.id) : [...s.categories, c.id] })

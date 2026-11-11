@@ -51,6 +51,8 @@ interface State {
   /** Needle as rendered locally (server value, or our own drag while dragging). */
   needle: number;
   needleBy: string | null;
+  /** When the needle last moved (ms), to tell a move-triggered vote reset from a withdrawn vote. */
+  needleAt: number;
   dragging: boolean;
   error: string | null;
   busy: boolean;
@@ -70,7 +72,8 @@ interface State {
   sendClue(c: string): void;
   dragNeedle(v: number): void;
   setDragging(d: boolean): void;
-  lockIn(): void;
+  /** Vote to lock the needle where it is (or withdraw the vote). */
+  vote(on: boolean): void;
   counter(side: Side): void;
   next(): void;
   toLobby(): void;
@@ -81,11 +84,13 @@ const socket: GameSocket = io({ autoConnect: true, transports: ['websocket', 'po
 export const useGame = create<State>((set, get) => {
   const fail = (error?: string) => set({ error: error ?? 'default', busy: false });
 
-  // Throttle needle emits to one per animation frame.
+  // Throttle needle emits to ~30 per second. A timer, not requestAnimationFrame:
+  // rAF pauses in background tabs, which would hold back the move (and the vote reset).
   let pendingNeedle: number | null = null;
-  let raf = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   const flushNeedle = () => {
-    raf = 0;
+    if (timer) clearTimeout(timer);
+    timer = null;
     if (pendingNeedle !== null) socket.emit('game:needle', pendingNeedle);
     pendingNeedle = null;
   };
@@ -109,7 +114,7 @@ export const useGame = create<State>((set, get) => {
   });
   socket.on('game:needle', ({ value, by }) => {
     if (get().dragging) return;
-    set({ needle: value, needleBy: by });
+    set({ needle: value, needleBy: by, needleAt: Date.now() });
   });
   socket.on('room:closed', (reason) => {
     write(K.room, null);
@@ -125,6 +130,7 @@ export const useGame = create<State>((set, get) => {
     room: null,
     needle: 0.5,
     needleBy: null,
+    needleAt: 0,
     dragging: false,
     error: null,
     busy: false,
@@ -195,17 +201,17 @@ export const useGame = create<State>((set, get) => {
     redraw: () => socket.emit('game:redraw'),
     sendClue: (c) => socket.emit('game:clue', c),
     dragNeedle(v) {
-      set({ needle: v, needleBy: get().playerId });
+      set({ needle: v, needleBy: get().playerId, needleAt: Date.now() });
       pendingNeedle = v;
-      if (!raf) raf = requestAnimationFrame(flushNeedle);
+      if (!timer) timer = setTimeout(flushNeedle, 33);
     },
     setDragging(dragging) {
       set({ dragging });
       if (!dragging && pendingNeedle !== null) flushNeedle();
     },
-    lockIn() {
-      flushNeedle();
-      socket.emit('game:lock');
+    vote(on) {
+      flushNeedle(); // the server must see the final needle before the vote
+      socket.emit('game:vote', on);
     },
     counter: (side) => socket.emit('game:counter', side),
     next: () => socket.emit('game:next'),
@@ -225,6 +231,11 @@ export function canGuess(room: RoomView, playerId: string): boolean {
   const p = room.players.find((x) => x.id === playerId);
   if (!p || p.team === null) return false;
   return room.settings.mode === 'coop' || p.team === room.activeTeam;
+}
+
+/** Connected players who must all vote before the needle locks. */
+export function guessVoters(room: RoomView) {
+  return room.players.filter((p) => p.connected && canGuess(room, p.id));
 }
 
 export function canCounter(room: RoomView, playerId: string): boolean {

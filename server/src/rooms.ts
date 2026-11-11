@@ -1,6 +1,7 @@
 import { CARDS, CARD_BY_ID } from '../../shared/src/cards';
 import { randomTarget, scoreFor, targetSide, clamp01 } from '../../shared/src/scoring';
 import {
+  CATEGORY_IDS,
   MAX_PLAYERS,
   ROOM_CODE_LENGTH,
   type CategoryId,
@@ -17,7 +18,7 @@ import {
 } from '../../shared/src/types';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
-const ALL_CATEGORIES: CategoryId[] = ['general', 'pop', 'arab', 'food', 'tech', 'ethics'];
+const ALL_CATEGORIES: CategoryId[] = [...CATEGORY_IDS];
 
 export class GameError extends Error {}
 
@@ -43,6 +44,10 @@ export interface Room {
   lastResult: RoundResult | null;
   history: RoundResult[];
   deck: string[];
+  /** Cards this room has already seen, across games, so replays don't repeat until the pool runs dry. */
+  seen: Set<string>;
+  /** Guessers who have voted to lock the current needle position. */
+  votes: Set<string>;
   psychicCursor: Record<TeamId | 'coop', number>;
   emptySince: number | null;
 }
@@ -93,6 +98,8 @@ export function createRoom(p: JoinPayload & { lang: Lang }): Room {
     lastResult: null,
     history: [],
     deck: [],
+    seen: new Set(),
+    votes: new Set(),
     psychicCursor: { A: 0, B: 0, coop: 0 },
     emptySince: null,
   };
@@ -139,6 +146,10 @@ export function leaveRoom(room: Room, playerId: string, hard: boolean): boolean 
   if (!pl) return false;
   if (hard && room.phase === 'lobby') room.players.delete(playerId);
   else pl.connected = false;
+
+  // A guesser dropping out mid-vote: the rest may now all have voted.
+  room.votes.delete(playerId);
+  checkVotes(room);
 
   const connected = [...room.players.values()].filter((x) => x.connected);
   if (connected.length === 0) {
@@ -210,16 +221,28 @@ export function startGame(room: Room, by: string) {
   room.lastResult = null;
   room.round = 0;
   room.psychicCursor = { A: 0, B: 0, coop: 0 };
-  room.deck = shuffle(CARDS.filter((c) => room.settings.categories.includes(c.category)).map((c) => c.id));
+  room.deck = buildDeck(room);
   for (const p of room.players.values()) p.ready = false;
   nextRound(room);
 }
 
-function drawCard(room: Room): SpectrumCard {
-  if (room.deck.length === 0) {
-    room.deck = shuffle(CARDS.filter((c) => room.settings.categories.includes(c.category)).map((c) => c.id));
+/** Shuffled deck of cards from the chosen decks that this room hasn't seen yet. */
+function buildDeck(room: Room): string[] {
+  const pool = CARDS.filter((c) => room.settings.categories.includes(c.category)).map((c) => c.id);
+  let fresh = pool.filter((id) => !room.seen.has(id));
+  if (fresh.length === 0) {
+    // Every card in these decks has been played: start the cycle over.
+    for (const id of pool) room.seen.delete(id);
+    fresh = pool;
   }
-  return CARD_BY_ID.get(room.deck.pop()!)!;
+  return shuffle(fresh);
+}
+
+function drawCard(room: Room): SpectrumCard {
+  if (room.deck.length === 0) room.deck = buildDeck(room);
+  const id = room.deck.pop()!;
+  room.seen.add(id);
+  return CARD_BY_ID.get(id)!;
 }
 
 function nextRound(room: Room) {
@@ -240,6 +263,7 @@ function nextRound(room: Room) {
   room.clue = null;
   room.needle = 0.5;
   room.counter = null;
+  room.votes.clear();
   room.phase = 'clue';
 }
 
@@ -264,14 +288,43 @@ export function canGuess(room: Room, playerId: string): boolean {
   return room.settings.mode === 'coop' || p.team === room.activeTeam;
 }
 
-export function moveNeedle(room: Room, by: string, value: number): boolean {
-  if (!canGuess(room, by)) return false;
-  room.needle = clamp01(Number(value));
-  return true;
+/** Connected players who are guessing this round; all of them must vote to lock. */
+export function voters(room: Room): Player[] {
+  return [...room.players.values()].filter((p) => p.connected && canGuess(room, p.id));
 }
 
-export function lockGuess(room: Room, by: string) {
+/**
+ * Moves the needle. Returns 'reset' when the move cancelled existing lock votes
+ * (callers should then broadcast full state), 'moved' otherwise, 'ignored' if not allowed.
+ */
+export function moveNeedle(room: Room, by: string, value: number): 'ignored' | 'moved' | 'reset' {
+  if (!canGuess(room, by)) return 'ignored';
+  const v = clamp01(Number(value));
+  const changed = Math.abs(v - room.needle) > 0.0005;
+  room.needle = v;
+  if (changed && room.votes.size > 0) {
+    room.votes.clear();
+    return 'reset';
+  }
+  return 'moved';
+}
+
+/** A guesser votes (or un-votes) to lock the needle where it is. Locks once everyone has voted. */
+export function voteLock(room: Room, by: string, on: boolean) {
   if (!canGuess(room, by)) throw new GameError('not_allowed');
+  if (on) room.votes.add(by);
+  else room.votes.delete(by);
+  checkVotes(room);
+}
+
+function checkVotes(room: Room) {
+  if (room.phase !== 'guess') return;
+  const v = voters(room);
+  if (v.length > 0 && v.every((p) => room.votes.has(p.id))) lockGuess(room);
+}
+
+function lockGuess(room: Room) {
+  room.votes.clear();
   const otherTeam = room.activeTeam === 'A' ? 'B' : 'A';
   const hasCounter =
     room.settings.mode === 'teams' && members(room, otherTeam).some((p) => p.connected);
@@ -368,6 +421,7 @@ export function viewFor(room: Room, viewerId: string): RoomView {
     card: room.card,
     clue: room.clue,
     needle: room.needle,
+    lockVotes: [...room.votes],
     target: showTarget ? room.target : null,
     counter: room.counter,
     scores: { ...room.scores },

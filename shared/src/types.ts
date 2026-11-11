@@ -8,7 +8,26 @@ export type Mode = 'teams' | 'coop';
 export type Side = 'left' | 'right';
 export type Phase = 'lobby' | 'clue' | 'guess' | 'counter' | 'reveal' | 'end';
 
-export type CategoryId = 'general' | 'pop' | 'arab' | 'food' | 'tech' | 'ethics';
+export const CATEGORY_IDS = [
+  'general',
+  'pop',
+  'arab',
+  'food',
+  'tech',
+  'ethics',
+  'social',
+  'work',
+  'money',
+  'travel',
+  'sports',
+  'nature',
+  'style',
+  'nostalgia',
+  'gaming',
+  'science',
+  'abstract',
+] as const;
+export type CategoryId = (typeof CATEGORY_IDS)[number];
 
 export interface Bilingual {
   en: string;
@@ -63,6 +82,7 @@ export interface RoomView {
   card: SpectrumCard | null;
   clue: string | null;
   needle: number; // 0..1, 0 = left end of the dial
+  lockVotes: string[]; // guessers who voted to lock the needle where it is
   target: number | null; // only present for the Psychic or after reveal
   counter: Side | null;
   scores: Record<TeamId, number>;
@@ -96,7 +116,8 @@ export interface ClientToServerEvents {
   'game:redraw': () => void;
   'game:clue': (clue: string) => void;
   'game:needle': (value: number) => void;
-  'game:lock': () => void;
+  /** Vote (true) or withdraw a vote (false) to lock the needle. Moving the needle clears all votes. */
+  'game:vote': (on: boolean) => void;
   'game:counter': (side: Side) => void;
   'game:next': () => void;
   'game:lobby': () => void;

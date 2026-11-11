@@ -62,9 +62,9 @@ guesser.s.emit('game:needle', aim);
 await wait(100);
 assert(Math.abs((opponent.st.needle ?? -1) - aim) < 1e-9, 'needle relayed in real time');
 
-guesser.s.emit('game:lock');
+guesser.s.emit('game:vote', true); // the only guesser on the team: their vote locks it
 await wait(150);
-assert(host.st.view!.phase === 'counter', 'counter phase for the other team');
+assert(host.st.view!.phase === 'counter', 'solo guesser locks with one vote → counter phase');
 opponent.s.emit('game:counter', 'left'); // target is left of the needle → correct
 await wait(150);
 const r = host.st.view!;
@@ -97,5 +97,71 @@ await wait(150);
 assert(back.st.view!.hostId === heir, 'old host rejoins as a regular player');
 
 [...bots, back].forEach((b) => b.s.close());
+
+// ---- Co-op room: collective lock voting + no repeated cards -----------------
+console.log('\nco-op voting');
+const crew = await Promise.all([10, 11, 12, 13].map(bot));
+const [c0, ...cRest] = crew;
+const code2: string = await new Promise((r) =>
+  c0.s.emit('room:create', { playerId: c0.id, name: 'C0', avatar: 0, lang: 'en' }, (a) => r(a.data!.code)),
+);
+c0.s.emit('room:settings', { mode: 'coop', categories: ['science'] });
+for (const [i, b] of cRest.entries())
+  await new Promise((r) => b.s.emit('room:join', { playerId: b.id, name: `C${i + 1}`, avatar: i, code: code2 }, r));
+await wait(150);
+await new Promise((r) => c0.s.emit('game:start', r));
+await wait(150);
+const v2 = c0.st.view!;
+const seer = crew.find((b) => b.id === v2.psychicId)!;
+const [g1, g2, g3] = crew.filter((b) => b !== seer);
+
+// No repeats: redrawing walks through every science card once before recycling.
+const seenCards = new Set([seer.st.view!.card!.id]);
+for (let k = 0; k < 19; k++) {
+  seer.s.emit('game:redraw');
+  await wait(40);
+  seenCards.add(seer.st.view!.card!.id);
+}
+assert(seenCards.size === 20, `20 draws gave 20 different cards (${seenCards.size})`);
+
+seer.s.emit('game:clue', 'black hole');
+await wait(150);
+g1.s.emit('game:vote', true);
+await wait(120);
+assert(c0.st.view!.phase === 'guess' && c0.st.view!.lockVotes.length === 1, '1 of 3 votes: still guessing');
+g2.s.emit('game:needle', 0.8);
+await wait(150);
+assert(c0.st.view!.lockVotes.length === 0, 'moving the needle resets all votes');
+g1.s.emit('game:vote', true);
+g2.s.emit('game:vote', true);
+await wait(150);
+assert(c0.st.view!.phase === 'guess' && c0.st.view!.lockVotes.length === 2, '2 of 3 votes: still guessing');
+g2.s.emit('game:vote', false);
+await wait(120);
+assert(c0.st.view!.lockVotes.length === 1, 'a vote can be withdrawn');
+g2.s.emit('game:vote', true);
+await wait(120);
+g3.s.emit('game:vote', true);
+await wait(150);
+assert(c0.st.view!.phase === 'reveal', 'everyone voted → locked and revealed (co-op has no counter)');
+assert(Math.abs(c0.st.view!.lastResult!.needle - 0.8) < 1e-9, 'the locked needle is the voted position');
+
+// A holdout dropping out completes the vote for the rest.
+c0.s.emit('game:next');
+await wait(150);
+const v3 = c0.st.view!;
+const seer3 = crew.find((b) => b.id === v3.psychicId)!;
+seer3.s.emit('game:clue', 'quasar');
+await wait(150);
+const gs = crew.filter((b) => b !== seer3 && b !== c0);
+const holdout = gs.pop()!;
+for (const b of [c0, ...gs].filter((b) => b !== seer3)) b.s.emit('game:vote', true);
+await wait(150);
+assert(c0.st.view!.phase === 'guess', 'waiting on the last voter');
+holdout.s.close();
+await wait(200);
+assert(c0.st.view!.phase === 'reveal', 'last voter disconnects → lock completes');
+
+crew.forEach((b) => b.s.close());
 console.log('\nall good');
 process.exit(0);

@@ -115,7 +115,7 @@ io.on('connection', (socket: S) => {
   socket.on('game:start', (ack) => act(socket, (r, pid) => R.startGame(r, pid), ack));
   socket.on('game:redraw', () => act(socket, (r, pid) => R.redraw(r, pid)));
   socket.on('game:clue', (c) => act(socket, (r, pid) => R.giveClue(r, pid, c)));
-  socket.on('game:lock', () => act(socket, (r, pid) => R.lockGuess(r, pid)));
+  socket.on('game:vote', (on) => act(socket, (r, pid) => R.voteLock(r, pid, on !== false)));
   socket.on('game:counter', (side) => act(socket, (r, pid) => R.counterGuess(r, pid, side)));
   socket.on('game:next', () => act(socket, (r, pid) => R.advance(r, pid)));
   socket.on('game:lobby', () => act(socket, (r, pid) => R.backToLobby(r, pid)));
@@ -125,7 +125,11 @@ io.on('connection', (socket: S) => {
     const room = roomOf(socket);
     const pid = socket.data.playerId;
     if (!room || !pid) return;
-    if (R.moveNeedle(room, pid, value)) socket.to(room.code).emit('game:needle', { value: room.needle, by: pid });
+    const result = R.moveNeedle(room, pid, value);
+    if (result === 'ignored') return;
+    socket.to(room.code).emit('game:needle', { value: room.needle, by: pid });
+    // Moving the needle cancelled everyone's lock votes: sync the vote count.
+    if (result === 'reset') void broadcast(room);
   });
 });
 
