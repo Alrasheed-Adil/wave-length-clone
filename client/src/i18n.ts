@@ -1,0 +1,250 @@
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import type { Lang } from '@shared/types';
+
+const en = {
+  app: { name: 'Tuned In', tagline: 'Read the room. Find the frequency.' },
+  home: {
+    yourName: 'Your name',
+    namePlaceholder: 'What do we call you?',
+    pickAvatar: 'Pick a face',
+    create: 'Open a room',
+    join: 'Join',
+    codePlaceholder: 'ROOM CODE',
+    or: 'or join one',
+    how: 'How it plays',
+    howSteps: [
+      'One player — the Psychic — secretly sees where the target sits between two extremes.',
+      'They give a single clue that lands on that spot.',
+      'Everyone else turns the dial together. Closer to the centre, more points.',
+    ],
+  },
+  lobby: {
+    room: 'Room',
+    copy: 'Copy invite link',
+    copied: 'Link copied',
+    teamA: 'Ember',
+    teamB: 'Tide',
+    players: 'Players',
+    spectators: 'Watching',
+    joinTeam: 'Join',
+    watch: 'Just watch',
+    play: 'Play',
+    ready: 'Ready',
+    notReady: 'Not ready',
+    imReady: "I'm ready",
+    host: 'Host',
+    settings: 'Room settings',
+    mode: 'Mode',
+    teams: 'Two teams',
+    coop: 'Co-op',
+    rounds: 'Rounds',
+    categories: 'Card decks',
+    cardLang: 'Card language',
+    start: 'Start the game',
+    waitingHost: 'Waiting for the host to start…',
+    needTwoPerTeam: 'Each team needs at least 2 players.',
+    needTwo: 'Need at least 2 players.',
+    leave: 'Leave',
+    empty: 'Nobody yet',
+  },
+  game: {
+    round: 'Round',
+    of: 'of',
+    psychic: 'Psychic',
+    you: 'you',
+    youArePsychic: "You're the Psychic",
+    psychicHint: 'Only you can see the target. Give a clue that points to it.',
+    cluePlaceholder: 'One clue, keep it short…',
+    sendClue: 'Lock the clue',
+    newCard: 'Different card',
+    waitingClue: '{{name}} is thinking of a clue…',
+    clue: 'Clue',
+    tune: 'Drag the needle together, then lock it in.',
+    lockIn: 'Lock it in',
+    watchingGuess: '{{team}} is tuning the dial…',
+    psychicWatch: 'Watch them tune. No hints!',
+    counterTitle: 'Is the target left or right of their needle?',
+    counterWait: '{{team}} is calling left or right for a bonus point…',
+    left: 'Left',
+    right: 'Right',
+    points_zero: 'Missed it',
+    points_one: '{{count}} point',
+    points_other: '{{count}} points',
+    bullseye: 'Bullseye!',
+    counterHit: '{{team}} called it — +1',
+    counterMiss: '{{team}} called it wrong',
+    next: 'Next round',
+    finish: 'See results',
+    waitingNext: 'Waiting for the next round…',
+    skip: 'Skip round',
+    scores: 'Score',
+    coopScore: 'Team score',
+    turn: "{{team}}'s turn",
+  },
+  end: {
+    title: 'Final tally',
+    wins: '{{team}} takes it!',
+    tie: "It's a tie.",
+    coopResult: 'You scored {{score}} out of {{max}}',
+    again: 'Back to lobby',
+    history: 'Round by round',
+  },
+  errors: {
+    room_not_found: "That room doesn't exist (or has closed).",
+    room_full: 'That room is full.',
+    need_two_per_team: 'Each team needs at least 2 players.',
+    need_two_players: 'Need at least 2 players.',
+    host_only: 'Only the host can do that.',
+    not_allowed: "That's not yours to do right now.",
+    empty_clue: 'Type a clue first.',
+    server_error: 'Something went wrong on the server.',
+    disconnected: 'Connection lost — reconnecting…',
+    opened_elsewhere: 'You opened this room in another tab.',
+    bad_request: 'Something went wrong.',
+    default: 'Something went wrong.',
+  },
+  lang: { toggle: 'عربي' },
+};
+
+const ar: typeof en = {
+  app: { name: 'توليف', tagline: 'اقرأ الجلسة. والقط التردد.' },
+  home: {
+    yourName: 'اسمك',
+    namePlaceholder: 'وش نسميك؟',
+    pickAvatar: 'اختر وجهك',
+    create: 'افتح غرفة',
+    join: 'ادخل',
+    codePlaceholder: 'رمز الغرفة',
+    or: 'أو ادخل غرفة',
+    how: 'طريقة اللعب',
+    howSteps: [
+      'لاعب واحد — العرّاف — يرى سرًّا مكان الهدف بين طرفين متضادين.',
+      'يعطي تلميحًا واحدًا يدل على ذلك المكان.',
+      'الباقون يحرّكون المؤشر معًا. كلما اقتربتم من المنتصف زادت النقاط.',
+    ],
+  },
+  lobby: {
+    room: 'الغرفة',
+    copy: 'انسخ رابط الدعوة',
+    copied: 'تم النسخ',
+    teamA: 'جمر',
+    teamB: 'مدّ',
+    players: 'اللاعبون',
+    spectators: 'متفرجون',
+    joinTeam: 'انضم',
+    watch: 'تفرّج فقط',
+    play: 'العب',
+    ready: 'جاهز',
+    notReady: 'غير جاهز',
+    imReady: 'أنا جاهز',
+    host: 'المضيف',
+    settings: 'إعدادات الغرفة',
+    mode: 'النمط',
+    teams: 'فريقان',
+    coop: 'تعاوني',
+    rounds: 'الجولات',
+    categories: 'مجموعات البطاقات',
+    cardLang: 'لغة البطاقات',
+    start: 'ابدأ اللعبة',
+    waitingHost: 'بانتظار المضيف ليبدأ…',
+    needTwoPerTeam: 'كل فريق يحتاج لاعبين على الأقل.',
+    needTwo: 'نحتاج لاعبين على الأقل.',
+    leave: 'اخرج',
+    empty: 'لا أحد بعد',
+  },
+  game: {
+    round: 'الجولة',
+    of: 'من',
+    psychic: 'العرّاف',
+    you: 'أنت',
+    youArePsychic: 'أنت العرّاف',
+    psychicHint: 'أنت وحدك ترى الهدف. أعطِ تلميحًا يدل عليه.',
+    cluePlaceholder: 'تلميح واحد، وخلّه قصير…',
+    sendClue: 'اعتمد التلميح',
+    newCard: 'بطاقة أخرى',
+    waitingClue: '{{name}} يفكّر في تلميح…',
+    clue: 'التلميح',
+    tune: 'حرّكوا المؤشر معًا، ثم اعتمدوه.',
+    lockIn: 'اعتمد',
+    watchingGuess: '{{team}} يضبطون المؤشر…',
+    psychicWatch: 'راقبهم. ممنوع التلميح!',
+    counterTitle: 'هل الهدف يسار مؤشرهم أم يمينه؟',
+    counterWait: '{{team}} يختارون يسار أو يمين لنقطة إضافية…',
+    left: 'يسار',
+    right: 'يمين',
+    points_zero: 'ضاعت',
+    points_one: 'نقطة واحدة',
+    points_two: 'نقطتان',
+    points_few: '{{count}} نقاط',
+    points_many: '{{count}} نقطة',
+    points_other: '{{count}} نقاط',
+    bullseye: 'في الصميم!',
+    counterHit: '{{team}} أصابوا — +1',
+    counterMiss: '{{team}} أخطؤوا التخمين',
+    next: 'الجولة التالية',
+    finish: 'النتائج',
+    waitingNext: 'بانتظار الجولة التالية…',
+    skip: 'تخطَّ الجولة',
+    scores: 'النتيجة',
+    coopScore: 'نقاط الفريق',
+    turn: 'دور {{team}}',
+  } as typeof en.game,
+  end: {
+    title: 'الحصيلة النهائية',
+    wins: '{{team}} يفوز!',
+    tie: 'تعادل.',
+    coopResult: 'جمعتم {{score}} من {{max}}',
+    again: 'العودة للغرفة',
+    history: 'جولة بجولة',
+  },
+  errors: {
+    room_not_found: 'الغرفة غير موجودة (أو أُغلقت).',
+    room_full: 'الغرفة ممتلئة.',
+    need_two_per_team: 'كل فريق يحتاج لاعبين على الأقل.',
+    need_two_players: 'نحتاج لاعبين على الأقل.',
+    host_only: 'هذا للمضيف فقط.',
+    not_allowed: 'ليس دورك الآن.',
+    empty_clue: 'اكتب التلميح أولًا.',
+    server_error: 'حدث خطأ في الخادم.',
+    disconnected: 'انقطع الاتصال — نعيد المحاولة…',
+    opened_elsewhere: 'فتحت هذه الغرفة في تبويب آخر.',
+    bad_request: 'حدث خطأ ما.',
+    default: 'حدث خطأ ما.',
+  },
+  lang: { toggle: 'EN' },
+};
+
+const LANG_KEY = 'tuned-in:lang';
+
+export function initialLang(): Lang {
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (saved === 'en' || saved === 'ar') return saved;
+  } catch {
+    /* storage blocked */
+  }
+  return navigator.language?.startsWith('ar') ? 'ar' : 'en';
+}
+
+export function applyLang(lang: Lang) {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  document.title = lang === 'ar' ? 'توليف' : 'Tuned In';
+  try {
+    localStorage.setItem(LANG_KEY, lang);
+  } catch {
+    /* ignore */
+  }
+  void i18n.changeLanguage(lang);
+}
+
+void i18n.use(initReactI18next).init({
+  resources: { en: { translation: en }, ar: { translation: ar } },
+  lng: initialLang(),
+  fallbackLng: 'en',
+  interpolation: { escapeValue: false },
+  returnObjects: true,
+});
+
+export default i18n;
