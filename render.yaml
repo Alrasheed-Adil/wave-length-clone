@@ -1,0 +1,16 @@
+# Render Blueprint: one free web service that serves both the game client
+# and the Socket.io server from the same URL.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: tuned-in
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: cd server && npm ci && cd ../client && npm ci --include=dev && npm run build
+    startCommand: cd server && npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22

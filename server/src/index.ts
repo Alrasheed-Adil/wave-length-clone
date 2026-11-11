@@ -16,6 +16,9 @@ const app = express();
 const http = createServer(app);
 const io: IO = new Server(http, { cors: { origin: true } });
 
+// Health check for the host (Render pings this to know the service is up).
+app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: R.rooms.size }));
+
 // Serve the built client in production (npm run build && npm start).
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
 if (existsSync(dist)) {
