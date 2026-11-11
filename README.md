@@ -19,6 +19,21 @@ Open http://localhost:5173 — phones on the same Wi-Fi can join through the
 **Production:** `npm run build && npm start` — the server then serves the built
 client on :3001.
 
+## Deploy free on Render
+
+The repo ships a `render.yaml` Blueprint: one free web service serves both
+the client and the Socket.io server from a single URL.
+
+1. Sign in at https://dashboard.render.com with GitHub.
+2. **New → Blueprint**, pick this repository, and click **Apply**.
+3. Wait for the first build (~3–4 min); your link is `https://tuned-in-xxxx.onrender.com`.
+
+Every push to `main` redeploys automatically. Free-tier notes:
+
+- The service sleeps after 15 minutes with no visitors. The first visit after
+  that takes ~50 s to wake up, so open the link a minute before game night.
+- Rooms live in memory, so a sleep or redeploy ends any game in progress.
+
 **Testing helpers** (with the server running):
 
 ```bash
